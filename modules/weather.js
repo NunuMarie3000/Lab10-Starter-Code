@@ -1,24 +1,13 @@
 'use strict';
 
-let cache = require('./cache.js');
+const axios = require('axios')
+let cache = require('../modules/cache');
 
-module.exports = getWeather;
-
-function getWeather(latitude, longitude) {
-  const key = 'weather-' + latitude + longitude;
-  const url = `http://api.weatherbit.io/v2.0/forecast/daily/?key=${WEATHER_API_KEY}&lang=en&lat=${lat}&lon=${lon}&days=5`;
-
-  if (cache[key] && (Date.now() - cache[key].timestamp < 50000)) {
-    console.log('Cache hit');
-  } else {
-    console.log('Cache miss');
-    cache[key] = {};
-    cache[key].timestamp = Date.now();
-    cache[key].data = axios.get(url)
-    .then(response => parseWeather(response.data));
+class Weather {
+  constructor(day) {
+    this.forecast = day.weather.description;
+    this.time = day.datetime;
   }
-  
-  return cache[key].data;
 }
 
 function parseWeather(weatherData) {
@@ -32,9 +21,33 @@ function parseWeather(weatherData) {
   }
 }
 
-class Weather {
-  constructor(day) {
-    this.forecast = day.weather.description;
-    this.time = day.datetime;
+
+async function getWeather(latitude, longitude) {
+  const key = 'weather-' + latitude + longitude;
+  const url = `http://api.weatherbit.io/v2.0/forecast/daily/?key=${process.env.WEATHER_API_KEY}&lang=en&lat=${latitude}&lon=${longitude}&days=5`;
+
+  if (cache[key] && (Date.now() - cache[key].timestamp < 50000)) {
+    console.log('Cache hit');
+    console.log(cache)
+  } else {
+    console.log('Cache miss');
+    cache[key] = {};
+    cache[key].timestamp = Date.now();
+    cache[key].data = await axios.get(url)
+    .then(response => parseWeather(response.data));
   }
+  return cache[key].data;
 }
+
+//this needs getWeather to work
+function weatherHandler(request, response) {
+  const { lat, lon } = request.query;
+  getWeather(lat, lon) // this is referencing getWeather()
+  .then(summaries => response.send(summaries))
+  .catch((error) => {
+    console.error(error);
+    response.status(200).send('Sorry. Something went wrong!')
+  });
+}  
+
+module.exports = weatherHandler
